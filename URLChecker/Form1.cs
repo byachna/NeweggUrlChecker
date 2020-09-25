@@ -118,6 +118,15 @@ namespace URLChecker
 					}
 				}
 
+				if (item.InStock)
+				{
+					for (int i = 0; i < 2; i++)
+					{
+						System.Media.SystemSounds.Beep.Play();
+						System.Threading.Thread.Sleep(200);
+					}
+				}
+
 				SortItems();
 			}
 			dgItemView.DataSource = null;
