@@ -108,6 +108,7 @@ namespace URLChecker
 				{
 					var regexId = new Regex(@"N\d+[A-Z]\d+");
 					item.NeweggId = regexId.Match(neweggId).Value;
+					item.Link = neweggId;
 				}
 
 				if (btnText.Contains("Add") || !stockText.Contains("OUT"))
@@ -159,7 +160,7 @@ namespace URLChecker
 
 		private void Wc_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
 		{
-			tspbRefresh.Value = e.ProgressPercentage;
+			tspbRefresh.Value = e.ProgressPercentage;			
 		}
 
 		private void toolStripProgressBar1_Click(object sender, EventArgs e)
