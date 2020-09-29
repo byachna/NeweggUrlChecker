@@ -10,6 +10,7 @@ using System.Windows.Forms;
 using System.Net;
 using HAP = HtmlAgilityPack;
 using System.Text.RegularExpressions;
+using System.Media;
 
 namespace URLChecker
 {
@@ -19,7 +20,8 @@ namespace URLChecker
 		private bool isRunning = false;
 		private List<Model.Item> pageItems = new List<Model.Item>();
 		private List<Model.Item> prevItems = new List<Model.Item>();
-		
+		private SoundPlayer alertSound = new SoundPlayer(Properties.Resources.alert);
+
 		public frmMain()
 		{
 			InitializeComponent();
@@ -73,6 +75,8 @@ namespace URLChecker
 
 		private void Wc_DownloadStringCompleted(object sender, DownloadStringCompletedEventArgs e)
 		{
+			var alreadyAlerted = false;
+
 			prevItems = pageItems;
 			pageItems.Clear();
 
@@ -98,10 +102,13 @@ namespace URLChecker
 				var priceLabel = node?.Descendants().FirstOrDefault(i => i.HasClass("price-current"));				
 				item.Price = string.IsNullOrWhiteSpace(priceLabel?.InnerText) ? "" : regex.Match(priceLabel.InnerText).Value;
 
-				item.Link = pageItem.GetAttributeValue("href", "") ?? "";
+				var neweggId = node?.Descendants().FirstOrDefault(i => i.HasClass("item-img"))?.GetAttributeValue("href", "");
 
-				item.NeweggId = item.Link.Split(new char[] { '/' }).Last();
-
+				if (!string.IsNullOrWhiteSpace(neweggId))
+				{
+					var regexId = new Regex(@"N\d+[A-Z]\d+");
+					item.NeweggId = regexId.Match(neweggId).Value;
+				}
 
 				if (btnText.Contains("Add") || !stockText.Contains("OUT"))
 				{
@@ -112,19 +119,14 @@ namespace URLChecker
 				{
 					if (!string.IsNullOrWhiteSpace(item.Price))
 					{
-						pageItems.Add(item);
-
-						//CheckStockAlert(item);
+						pageItems.Add(item);						
 					}
 				}
 
-				if (item.InStock)
-				{
-					for (int i = 0; i < 2; i++)
-					{
-						System.Media.SystemSounds.Beep.Play();
-						System.Threading.Thread.Sleep(200);
-					}
+				if (item.InStock && !alreadyAlerted)
+				{					
+					alertSound.Play();
+					alreadyAlerted = true;
 				}
 
 				SortItems();
@@ -133,20 +135,11 @@ namespace URLChecker
 			dgItemView.DataSource = pageItems;			
 		}
 
-		private void CheckStockAlert(Model.Item item)
-		{
-			var prevItem = prevItems.Where(x => x.Link == item.Link).FirstOrDefault();
-
-			if(!prevItem.InStock && item.InStock)
-			{
-				frmMain.ActiveForm.Activate();
-				MessageBox.Show("ITEM IN STOCK!!!!!");
-			}
-		}
 
 		private void SortItems()
 		{
-			if(cbSortBy.SelectedItem == null) { return; }
+			if(cbSortBy.SelectedItem == null || pageItems.Count == 0) { return; }
+
 			switch (cbSortBy.SelectedItem.ToString())
 			{
 				case "Name":
@@ -202,7 +195,7 @@ namespace URLChecker
 			{
 				dgItemView.Columns[e.ColumnIndex].DefaultCellStyle.ForeColor = Color.Blue;
 			}
-			// Set the background to red for negative values in the Balance column.
+			
 			if (dgItemView.Columns[e.ColumnIndex].Name.Equals("InStock"))
 			{
 				if (bool.Parse(e.Value.ToString()) == true)
