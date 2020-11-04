@@ -11,6 +11,7 @@ using System.Net;
 using HAP = HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using System.Media;
+using System.IO;
 
 namespace URLChecker
 {
@@ -21,6 +22,8 @@ namespace URLChecker
 		private List<Model.Item> pageItems = new List<Model.Item>();
 		private List<Model.Item> prevItems = new List<Model.Item>();
 		private SoundPlayer alertSound = new SoundPlayer(Properties.Resources.alert);
+		private FileStream output;
+		private StreamWriter writer;
 
 		public frmMain()
 		{
@@ -36,25 +39,32 @@ namespace URLChecker
 		{
 			if (!isRunning)
 			{
+				output = new FileStream("./Output.txt", FileMode.OpenOrCreate, FileAccess.Write);
+				writer = new StreamWriter(output);
 				ProcessPage();
 				timer.Interval = int.Parse(txtInterval.Text) * 1000;
 				timer.Tick += Timer_Tick;
-				timer.Start();			
+				timer.Start();
 
 				btnRunToggle.Text = "Stop";
 				isRunning = true;
 
-			} else
+
+			}
+			else
 			{
 				timer.Stop();
 				btnRunToggle.Text = "Start";
 				isRunning = false;
+
+				writer.Close();
+				output.Close();
 			}
 		}
 
 		private void Timer_Tick(object sender, EventArgs e)
 		{
-			ProcessPage();	
+			ProcessPage();
 		}
 
 		private void ProcessPage()
@@ -65,12 +75,12 @@ namespace URLChecker
 		}
 
 		private void ParseItemsFromPage(string url)
-		{			
-			var wc = new WebClient();			
+		{
+			var wc = new WebClient();
 
 			wc.DownloadStringAsync(new Uri(url));
 			wc.DownloadProgressChanged += Wc_DownloadProgressChanged;
-			wc.DownloadStringCompleted += Wc_DownloadStringCompleted;						
+			wc.DownloadStringCompleted += Wc_DownloadStringCompleted;
 		}
 
 		private void Wc_DownloadStringCompleted(object sender, DownloadStringCompletedEventArgs e)
@@ -81,7 +91,7 @@ namespace URLChecker
 			pageItems.Clear();
 
 			var regex = new Regex("\\$\\d*.\\d*");
-			var html = e.Result;			
+			var html = e.Result;
 
 			var h = new HAP.HtmlDocument();
 			h.LoadHtml(html);
@@ -99,7 +109,7 @@ namespace URLChecker
 				var promo = node?.Descendants().FirstOrDefault(i => i.HasClass("item-promo"));
 				var stockText = node?.InnerText.Trim() ?? "";
 
-				var priceLabel = node?.Descendants().FirstOrDefault(i => i.HasClass("price-current"));				
+				var priceLabel = node?.Descendants().FirstOrDefault(i => i.HasClass("price-current"));
 				item.Price = string.IsNullOrWhiteSpace(priceLabel?.InnerText) ? "" : regex.Match(priceLabel.InnerText).Value;
 
 				var neweggId = node?.Descendants().FirstOrDefault(i => i.HasClass("item-img"))?.GetAttributeValue("href", "");
@@ -116,30 +126,34 @@ namespace URLChecker
 					item.InStock = true;
 				}
 
-				if ((item.InStock && chkInStock.Checked) || !chkInStock.Checked)					
+				if ((item.InStock && chkInStock.Checked) || !chkInStock.Checked)
 				{
 					if (!string.IsNullOrWhiteSpace(item.Price))
 					{
-						pageItems.Add(item);						
+						pageItems.Add(item);
 					}
 				}
 
 				if (item.InStock && !alreadyAlerted)
-				{					
+				{
 					alertSound.Play();
 					alreadyAlerted = true;
+
+					// LOG the html output					
+					writer.WriteLine("==========================================================================================");
+					writer.Write(html);
 				}
 
 				SortItems();
 			}
 			dgItemView.DataSource = null;
-			dgItemView.DataSource = pageItems;			
+			dgItemView.DataSource = pageItems;
 		}
 
 
 		private void SortItems()
 		{
-			if(cbSortBy.SelectedItem == null || pageItems.Count == 0) { return; }
+			if (cbSortBy.SelectedItem == null || pageItems.Count == 0) { return; }
 
 			switch (cbSortBy.SelectedItem.ToString())
 			{
@@ -160,7 +174,7 @@ namespace URLChecker
 
 		private void Wc_DownloadProgressChanged(object sender, DownloadProgressChangedEventArgs e)
 		{
-			tspbRefresh.Value = e.ProgressPercentage;			
+			tspbRefresh.Value = e.ProgressPercentage;
 		}
 
 		private void toolStripProgressBar1_Click(object sender, EventArgs e)
@@ -171,9 +185,9 @@ namespace URLChecker
 		private void frmMain_Load(object sender, EventArgs e)
 		{
 			dgItemView.CellFormatting += DgItemView_CellFormatting;
-			dgItemView.CellClick += DgItemView_CellClick;			
+			dgItemView.CellClick += DgItemView_CellClick;
 		}
-		
+
 
 		private void DgItemView_CellClick(object sender, DataGridViewCellEventArgs e)
 		{
@@ -196,13 +210,13 @@ namespace URLChecker
 			{
 				dgItemView.Columns[e.ColumnIndex].DefaultCellStyle.ForeColor = Color.Blue;
 			}
-			
+
 			if (dgItemView.Columns[e.ColumnIndex].Name.Equals("InStock"))
 			{
 				if (bool.Parse(e.Value.ToString()) == true)
 				{
 					{
-						dgItemView.Rows[e.RowIndex].DefaultCellStyle.BackColor = Color.LightGreen;						
+						dgItemView.Rows[e.RowIndex].DefaultCellStyle.BackColor = Color.LightGreen;
 					}
 				}
 			}
